@@ -7,6 +7,8 @@
 //
 
 import UIKit
+import Vision
+import CoreML
 
 class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     
@@ -17,14 +19,17 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     override func viewDidLoad() {
         super.viewDidLoad()
         imagePicker.delegate = self
-        imagePicker.allowsEditing = false
+        imagePicker.allowsEditing = true
         imagePicker.sourceType = .camera
     }
 
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        let userPickedImage = info[UIImagePickerController.InfoKey.originalImage]
+        if let userPickedImage = info[UIImagePickerController.InfoKey.editedImage] as? UIImage{
         
-        imageView.image = userPickedImage as? UIImage
+            guard let convertedCiImage = CIImage(image: userPickedImage) else{fatalError("Cannot convert to CIImage")}
+            detect(image: convertedCiImage)
+            imageView.image = userPickedImage
+        }
     }
     
     @IBAction func cameraTapped(_ sender: UIBarButtonItem) {
@@ -32,5 +37,22 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
         imagePicker.dismiss(animated: true, completion: nil)
     }
     
+    func detect(image: CIImage){
+        guard let model = try? VNCoreMLModel(for: FlowerClassifier().model) else {fatalError("Cannot create VNModel for FlowerClassifier model")}
+        
+        let request = VNCoreMLRequest(model: model){(request,error) in
+            let classification = request.results?.first as? VNClassificationObservation
+                        
+            self.navigationItem.title = classification?.identifier
+        }
+        
+        let handler = VNImageRequestHandler(ciImage: image)
+        
+        do{
+            try handler.perform([request])
+        }
+        catch{
+            print(error)
+        }
+    }
 }
-
